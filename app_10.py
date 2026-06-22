@@ -401,9 +401,9 @@ with st.expander("Ver detalle completo"):
     st.dataframe(df_f[cols_show].sort_values(["OBRA","N_EVA"]), use_container_width=True)
 
 
-# ── Buscador de subcontratos ───────────────────────────────────────────────────
+# ── Verificador de subcontratos ────────────────────────────────────────────────
 st.markdown('<hr class="divider-naranja">', unsafe_allow_html=True)
-st.markdown(f'''
+st.markdown('''
 <div class="seccion-titulo">🔍 Verificador de Subcontratos</div>
 <div class="seccion-sub">Busca un subcontrato antes de cotizar — verifica su estado en el sistema</div>
 ''', unsafe_allow_html=True)
@@ -419,9 +419,9 @@ df_todos = cargar_datos(excel_path.read_bytes())
 if buscar_nombre or buscar_rut:
     df_busq = df_todos.copy()
     if buscar_nombre:
-        df_busq = df_busq[df_busq["SUBCONTRATO"].str.contains(buscar_nombre.strip().upper(), na=False)]
+        df_busq = df_busq[df_busq["SUBCONTRATO"].str.upper().str.contains(buscar_nombre.strip().upper(), na=False)]
     if buscar_rut:
-        df_busq = df_busq[df_busq["RUT"].astype(str).str.contains(buscar_rut.strip(), na=False)]
+        df_busq = df_busq[df_busq["RUT"].astype(str).str.upper().str.contains(buscar_rut.strip().upper(), na=False)]
 
     if df_busq.empty:
         st.info("No se encontraron resultados.")
@@ -436,28 +436,30 @@ if buscar_nombre or buscar_rut:
                 color_bg, color_txt, icono = "#f8d7da", "#721c24", "❌"
             elif estado == "NO RECOMENDADO":
                 color_bg, color_txt, icono = "#fde8e8", "#8B0000", "🚫"
-            else:  # NO AUTORIZADO
-                color_bg, color_txt, icono = "#222222", "#ffffff", "⛔"
+            else:
+                color_bg, color_txt, icono = "#2a2a2a", "#ffffff", "⛔"
 
-            st.markdown(f'''
-            <div style="background:{color_bg}; color:{color_txt}; padding:16px 20px;
-                        border-radius:10px; margin-bottom:10px; font-family:'Hanken Grotesk',sans-serif;">
-                <div style="font-size:1.1rem; font-weight:700;">{icono} {row["SUBCONTRATO"]}</div>
-                <div style="font-size:0.85rem; margin-top:4px;">
+            st.markdown(f"""
+            <div style="background:{color_bg}; border-left:4px solid {color_txt}; color:{color_txt};
+                        padding:14px 20px; border-radius:8px; margin-bottom:8px;
+                        font-family:'Hanken Grotesk',sans-serif;">
+                <div style="font-size:1.05rem; font-weight:700;">{icono} {row["SUBCONTRATO"]}</div>
+                <div style="font-size:0.82rem; margin-top:4px;">
                     RUT: {row["RUT"]} &nbsp;|&nbsp; Estado: <strong>{estado}</strong>
                     &nbsp;|&nbsp; Actividad: {row.get("ACTIVIDAD","—")} &nbsp;|&nbsp; Obra: {row["OBRA"]}
                 </div>
-            </div>''', unsafe_allow_html=True)
+            </div>""", unsafe_allow_html=True)
 
 st.markdown('<hr class="divider-naranja">', unsafe_allow_html=True)
 
 # ── No Recomendados ────────────────────────────────────────────────────────────
-df_no_rec = df_todos[df_todos["ESTADO"] == "NO RECOMENDADO"].drop_duplicates(subset=["SUBCONTRATO"])
-df_no_aut = df_todos[df_todos["ESTADO"] == "NO AUTORIZADO"].drop_duplicates(subset=["SUBCONTRATO"])
+df_todos2 = cargar_datos(excel_path.read_bytes())
+df_no_rec = df_todos2[df_todos2["ESTADO"] == "NO RECOMENDADO"].drop_duplicates(subset=["SUBCONTRATO"])
+df_no_aut = df_todos2[df_todos2["ESTADO"] == "NO AUTORIZADO"].drop_duplicates(subset=["SUBCONTRATO"])
 
 st.markdown(f'''
 <div style="background:#fde8e8; border-left:5px solid #8B0000; border-radius:10px;
-            padding:18px 24px; margin-bottom:24px;">
+            padding:18px 24px; margin-bottom:16px;">
   <div style="font-size:1.15rem; font-weight:800; color:#8B0000;">
     🚫 No Recomendados ({len(df_no_rec)})
   </div>
@@ -469,17 +471,19 @@ st.markdown(f'''
 if df_no_rec.empty:
     st.success("No hay subcontratos en esta categoría.")
 else:
-    cols_nr = ["SUBCONTRATO","RUT","ACTIVIDAD","OBRA","NOTA FINAL (1 a 7)"]
-    cols_nr = [c for c in ["SUBCONTRATO","RUT","ACTIVIDAD","OBRA","NOTA_FINAL"] if c in df_no_rec.columns]
-    st.dataframe(
-        df_no_rec[cols_nr].sort_values("SUBCONTRATO").reset_index(drop=True),
-        use_container_width=True,
-        height=min(400, 40 + len(df_no_rec)*38)
-    )
+    for _, row in df_no_rec.sort_values("SUBCONTRATO").iterrows():
+        st.markdown(f"""
+        <div style="background:#fde8e8; border-left:4px solid #8B0000; border-radius:8px;
+                    padding:12px 18px; margin-bottom:8px; font-family:'Hanken Grotesk',sans-serif;">
+            <div style="font-size:1rem; font-weight:700; color:#8B0000;">🚫 {row["SUBCONTRATO"]}</div>
+            <div style="font-size:0.82rem; color:#5a0000; margin-top:4px;">
+                RUT: {row["RUT"]} &nbsp;|&nbsp; Actividad: {row.get("ACTIVIDAD","—")} &nbsp;|&nbsp; Obra: {row["OBRA"]}
+            </div>
+        </div>""", unsafe_allow_html=True)
 
 st.markdown(f'''
-<div style="background:#1a1a1a; border-left:5px solid #555; border-radius:10px;
-            padding:18px 24px; margin-bottom:24px; margin-top:24px;">
+<div style="background:#2a2a2a; border-left:5px solid #888; border-radius:10px;
+            padding:18px 24px; margin-bottom:16px; margin-top:24px;">
   <div style="font-size:1.15rem; font-weight:800; color:#ffffff;">
     ⛔ No Autorizados ({len(df_no_aut)})
   </div>
@@ -491,12 +495,15 @@ st.markdown(f'''
 if df_no_aut.empty:
     st.success("No hay subcontratos en esta categoría.")
 else:
-    cols_na = [c for c in ["SUBCONTRATO","RUT","ACTIVIDAD","OBRA","NOTA_FINAL"] if c in df_no_aut.columns]
-    st.dataframe(
-        df_no_aut[cols_na].sort_values("SUBCONTRATO").reset_index(drop=True),
-        use_container_width=True,
-        height=min(400, 40 + len(df_no_aut)*38)
-    )
+    for _, row in df_no_aut.sort_values("SUBCONTRATO").iterrows():
+        st.markdown(f"""
+        <div style="background:#2a2a2a; border-left:4px solid #888; border-radius:8px;
+                    padding:12px 18px; margin-bottom:8px; font-family:'Hanken Grotesk',sans-serif;">
+            <div style="font-size:1rem; font-weight:700; color:#ffffff;">⛔ {row["SUBCONTRATO"]}</div>
+            <div style="font-size:0.82rem; color:#bbbbbb; margin-top:4px;">
+                RUT: {row["RUT"]} &nbsp;|&nbsp; Actividad: {row.get("ACTIVIDAD","—")} &nbsp;|&nbsp; Obra: {row["OBRA"]}
+            </div>
+        </div>""", unsafe_allow_html=True)
 
 
 # ── Footer ─────────────────────────────────────────────────────────────────────
