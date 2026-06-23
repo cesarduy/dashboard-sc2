@@ -114,6 +114,15 @@ st.markdown(f"""
   section[data-testid="stSidebar"] .stMultiSelect span {{
     background-color: {NARANJO} !important;
   }}
+  /* Sin fondo naranja en labels de filtros */
+  section[data-testid="stSidebar"] label p {{
+    background: none !important;
+    background-color: transparent !important;
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }}
 
   /* Botones y tags */
   .stMultiSelect [data-baseweb="tag"] {{
@@ -312,6 +321,11 @@ with col_b2:
         format_func=lambda x: "Escribe o selecciona un RUT..." if x == "" else x,
     )
 
+# Botón X para limpiar
+if buscar_nombre or buscar_rut:
+    if st.button("✕ Limpiar búsqueda"):
+        st.rerun()
+
 if buscar_nombre or buscar_rut:
     df_busq = df_todos_ver.copy()
     if buscar_nombre:
@@ -345,6 +359,29 @@ if buscar_nombre or buscar_rut:
                     &nbsp;|&nbsp; Actividad: {row.get("ACTIVIDAD","—")} &nbsp;|&nbsp; Obra: {row["OBRA"]}
                 </div>
             </div>""", unsafe_allow_html=True)
+
+        # Gráfico de notas en el tiempo
+        nombre_sel = df_busq["SUBCONTRATO"].iloc[0]
+        df_hist = df_todos_ver[df_todos_ver["SUBCONTRATO"] == nombre_sel][["N_EVA", "NOTA_FINAL", "OBRA"]].dropna(subset=["N_EVA", "NOTA_FINAL"])
+        df_hist = df_hist.sort_values("N_EVA")
+        df_hist["N_EVA"] = df_hist["N_EVA"].astype(int)
+
+        if not df_hist.empty:
+            st.markdown(f'<div class="seccion-titulo" style="margin-top:16px;">📈 Evolución de notas — {nombre_sel}</div>', unsafe_allow_html=True)
+            fig_hist = px.line(
+                df_hist, x="N_EVA", y="NOTA_FINAL",
+                markers=True, text="NOTA_FINAL",
+                hover_data=["OBRA"],
+                range_y=[1, 7],
+                color_discrete_sequence=[AZUL],
+                labels={"N_EVA": "N° Evaluación", "NOTA_FINAL": "Nota"}
+            )
+            fig_hist.update_traces(textposition="top center", texttemplate="%{text:.2f}")
+            fig_hist.add_hline(y=5.5, line_dash="dash", line_color="#2ECC71", annotation_text="Aprobado ≥ 5.5")
+            fig_hist.add_hline(y=4.0, line_dash="dash", line_color=NARANJO, annotation_text="Mejorar ≥ 4.0")
+            fig_hist.update_xaxes(tickmode="linear", dtick=1)
+            fig_hist.update_layout(height=320)
+            st.plotly_chart(plotly_layout(fig_hist), use_container_width=True)
 
 st.markdown('<hr class="divider-naranja">', unsafe_allow_html=True)
 
