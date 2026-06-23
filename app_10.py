@@ -119,22 +119,16 @@ st.markdown(f"""
   section[data-testid="stSidebar"] .stMultiSelect span {{
     background-color: {NARANJO} !important;
   }}
-  /* Sin fondo naranja en labels de filtros */
-  section[data-testid="stSidebar"] label p {{
+
+  /* Eliminar fondo naranja de labels — apunta al wrapper del label */
+  section[data-testid="stSidebar"] .stMultiSelect label,
+  section[data-testid="stSidebar"] .stMultiSelect label *,
+  section[data-testid="stSidebar"] [data-testid="stWidgetLabel"],
+  section[data-testid="stSidebar"] [data-testid="stWidgetLabel"] * {{
     background: transparent !important;
     background-color: transparent !important;
     background-image: none !important;
     box-shadow: none !important;
-    padding: 0 !important;
-    font-weight: 600 !important;
-    font-size: 0.85rem !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.04em !important;
-  }}
-  section[data-testid="stSidebar"] .stMarkdown p,
-  section[data-testid="stSidebar"] .stMultiSelect > label > div > p {{
-    background: transparent !important;
-    background-color: transparent !important;
   }}
 
   /* Botones y tags */
