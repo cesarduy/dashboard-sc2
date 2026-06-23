@@ -242,14 +242,14 @@ df = cargar_datos(excel_path.read_bytes())
 FOTOS_OBRAS: dict = {
     # Clave: nombre exacto de la obra tal como aparece en el Excel despues de .str.title()
     # Valor: nombre del archivo de imagen en la misma carpeta que app.py
-    "Guillermo Feliu":  "foto_guillermo_feliu.jpeg",
-    "Jose Venturelli":  "foto_jose_venturelli.jpg",
+    "Guillermo Feliú":  "foto_guillermo_feliu.jpeg",
+    "José Venturelli":  "foto_jose_venturelli.jpg",
     "Pedro Luna Ii":    "foto_pedro_luna_ii.JPG",
     "Alfredo Helsby":   "foto_alfredo_helsby.JPG",
     "Armando Uribe":    "foto_armando_uribe.jpg",
     "Enrique Maturana": "foto_enrique_maturana.JPG",
     "Enriqueta Petit":  "foto_enriqueta_petit.JPG",
-    # Obras sin foto: Colina Ii, Delia Del Carril, Pedro Luna I -> mantienen fondo base
+    # Obras sin foto: Colina Ii, Delia Del Carril, Pedro Luna I, Adriana Olguin -> fondo blanco
 }
 
 def obra_foto_b64(nombre_obra: str) -> str | None:
@@ -266,37 +266,163 @@ def obra_foto_b64(nombre_obra: str) -> str | None:
     return None
 
 # ── Filtros sidebar ────────────────────────────────────────────────────────────
+# Orden fijo de proyectos (incluyendo Adriana Olguín como futuro)
+ORDEN_OBRAS = [
+    "Delia Del Carril",
+    "Colina Ii",
+    "Armando Uribe",
+    "Pedro Luna I",
+    "Alfredo Helsby",
+    "José Venturelli",
+    "Enrique Maturana",
+    "Enriqueta Petit",
+    "Pedro Luna Ii",
+    "Guillermo Feliú",
+    "Adriana Olguín",
+]
+
+TODAS_KEY = "__TODAS__"
+
+if "obra_activa" not in st.session_state:
+    st.session_state["obra_activa"] = TODAS_KEY
+
 with st.sidebar:
-    st.markdown("### Filtros")
-    obras_disp = sorted(df["OBRA"].dropna().unique())
+    st.markdown("### Proyectos")
 
-    TODAS = "📋 Todas las obras"
-    opciones = [TODAS] + list(obras_disp)
+    # CSS para la lista de proyectos
+    st.markdown(f"""
+    <style>
+      .proyecto-btn {{
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 8px;
+        cursor: pointer;
+        background: transparent;
+        border: 2px solid transparent;
+        color: white;
+        font-family: 'Hanken Grotesk', sans-serif;
+        font-size: 0.88rem;
+        font-weight: 500;
+        text-align: left;
+        margin-bottom: 4px;
+        transition: border-color 0.15s;
+      }}
+      .proyecto-btn:hover {{
+        background: rgba(255,255,255,0.08);
+      }}
+      .proyecto-btn.activo {{
+        border-color: {NARANJO};
+        background: rgba(225,132,38,0.15);
+      }}
+      .proyecto-btn img {{
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        object-fit: cover;
+        flex-shrink: 0;
+        border: 1px solid rgba(255,255,255,0.2);
+      }}
+      .proyecto-btn .icono-placeholder {{
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 1rem;
+      }}
+      .proyecto-todas {{
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 8px;
+        cursor: pointer;
+        background: transparent;
+        border: 2px solid transparent;
+        color: white;
+        font-family: 'Hanken Grotesk', sans-serif;
+        font-size: 0.88rem;
+        font-weight: 600;
+        text-align: left;
+        margin-bottom: 8px;
+        transition: border-color 0.15s;
+      }}
+      .proyecto-todas:hover {{
+        background: rgba(255,255,255,0.08);
+      }}
+      .proyecto-todas.activo {{
+        border-color: {NARANJO};
+        background: rgba(225,132,38,0.15);
+      }}
+    </style>
+    """, unsafe_allow_html=True)
 
-    if "obra_sel_box" not in st.session_state:
-        st.session_state["obra_sel_box"] = TODAS
+    # Botón "Todos los proyectos"
+    todas_activo = "activo" if st.session_state["obra_activa"] == TODAS_KEY else ""
+    if st.button(
+        "🏗️  Todos los proyectos",
+        key="btn_todas",
+        use_container_width=True,
+    ):
+        st.session_state["obra_activa"] = TODAS_KEY
+        st.rerun()
 
-    obra_elegida = st.selectbox(
-        "Seleccionar obra",
-        options=opciones,
-        index=opciones.index(st.session_state.get("obra_sel_box", TODAS)),
-        key="obra_sel_box",
-    )
+    st.markdown('<hr style="border-color:rgba(255,255,255,0.15); margin:6px 0 10px 0;">', unsafe_allow_html=True)
 
-    # obras_sel: lista usada en el resto del código
-    if obra_elegida == TODAS:
-        obras_sel = list(obras_disp)
+    # Lista de proyectos con foto miniatura
+    obras_en_df = set(df["OBRA"].dropna().unique())
+
+    for obra in ORDEN_OBRAS:
+        foto_b64_mini = obra_foto_b64(obra)
+        activo_class = "activo" if st.session_state["obra_activa"] == obra else ""
+
+        if foto_b64_mini:
+            icono_html = f'<img src="{foto_b64_mini}">'
+        else:
+            icono_html = '<div class="icono-placeholder">🏘️</div>'
+
+        # Etiqueta del botón (sin HTML — Streamlit no soporta HTML en labels de botón)
+        label_obra = obra.replace(" Ii", " II").replace(" I", " I")
+        es_futuro = obra not in obras_en_df
+        suffix = " 🔜" if es_futuro else ""
+
+        col_ico, col_btn = st.columns([1, 4])
+        with col_ico:
+            if foto_b64_mini:
+                border_color = NARANJO if st.session_state["obra_activa"] == obra else "rgba(255,255,255,0.2)"
+                st.markdown(
+                    f'<img src="{foto_b64_mini}" style="width:36px;height:36px;border-radius:50%;'
+                    f'object-fit:cover;border:2px solid {border_color};margin-top:4px;">',
+                    unsafe_allow_html=True,
+                )
+            else:
+                emoji = "🔜" if es_futuro else "🏘️"
+                st.markdown(
+                    f'<div style="width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.12);'
+                    f'display:flex;align-items:center;justify-content:center;margin-top:4px;font-size:1rem;'
+                    f'border:2px solid {"rgba(225,132,38,0.8)" if st.session_state["obra_activa"] == obra else "rgba(255,255,255,0.2)"};">'
+                    f'{emoji}</div>',
+                    unsafe_allow_html=True,
+                )
+        with col_btn:
+            btn_label = f"{label_obra}{suffix}"
+            if st.button(btn_label, key=f"btn_{obra}", use_container_width=True):
+                st.session_state["obra_activa"] = obra
+                st.rerun()
+
+    # Derivar obras_sel desde obra_activa
+    obra_activa = st.session_state["obra_activa"]
+    if obra_activa == TODAS_KEY:
+        obras_sel = [o for o in ORDEN_OBRAS if o in obras_en_df]
     else:
-        obras_sel = [obra_elegida]
-
-    # Miniatura en sidebar cuando se elige una obra con foto
-    if len(obras_sel) == 1:
-        foto_b64_sidebar = obra_foto_b64(obras_sel[0])
-        if foto_b64_sidebar:
-            st.markdown(
-                f'<img src="{foto_b64_sidebar}" style="width:100%; border-radius:8px; margin-top:10px;" title="{obras_sel[0]}">',
-                unsafe_allow_html=True,
-            )
+        obras_sel = [obra_activa] if obra_activa in obras_en_df else []
 
 # ── Fondo dinámico según selección de obras ───────────────────────────────────
 if len(obras_sel) == 1:
@@ -307,7 +433,6 @@ else:
 if _foto_fondo:
     st.markdown(f"""
     <style>
-      /* Fondo con foto de la obra al 60% de transparencia */
       .stApp {{
         background-image: url("{_foto_fondo}");
         background-size: cover;
@@ -318,11 +443,10 @@ if _foto_fondo:
         content: "";
         position: fixed;
         inset: 0;
-        background: rgba(255,255,255,0.60);
+        background: rgba(255,255,255,0.80);
         z-index: 0;
         pointer-events: none;
       }}
-      /* Asegurar que el contenido quede sobre la capa */
       .stApp > * {{
         position: relative;
         z-index: 1;
@@ -334,18 +458,25 @@ else:
     <style>
       .stApp {
         background-image: none !important;
-        background-color: #F6F1E9;
+        background-color: #ffffff !important;
       }
       .stApp::before { display: none; }
     </style>
     """, unsafe_allow_html=True)
 
 # ── Header: se llena aquí con obras_sel ya definida ───────────────────────────
-_subtitulo_obra = (
-    f'<div style="font-size: 1.6rem; font-weight: 800; color: {NARANJO}; '
-    f'line-height: 1.2; margin-top: 4px; letter-spacing: 0.02em;">'
-    f'{obras_sel[0].upper()}</div>'
-) if len(obras_sel) == 1 else ""
+if len(obras_sel) == 1:
+    _subtitulo_obra = (
+        f'<div style="font-size: 1.6rem; font-weight: 800; color: {NARANJO}; '
+        f'line-height: 1.2; margin-top: 4px; letter-spacing: 0.02em;">'
+        f'{obras_sel[0].upper().replace(" II", " II").replace("PEDRO LUNA II", "PEDRO LUNA II")}</div>'
+    )
+else:
+    _subtitulo_obra = (
+        f'<div style="font-size: 1.3rem; font-weight: 700; color: {NARANJO}; '
+        f'line-height: 1.2; margin-top: 4px; letter-spacing: 0.04em;">'
+        f'TODOS LOS PROYECTOS</div>'
+    )
 
 _header_placeholder.markdown(f"""
 <div style="
@@ -375,13 +506,21 @@ _header_placeholder.markdown(f"""
 # ── Filtro de datos (solo por obra; estado siempre incluye todos) ───────────────
 estados_todos = ["APROBADO", "MEJORAR", "REPROBADO"]
 
+if not obras_sel:
+    st.info("🔜 Este proyecto aún no tiene evaluaciones registradas.")
+    st.stop()
+
 df_f = df[
     df["OBRA"].isin(obras_sel) &
     df["ESTADO"].isin(estados_todos)
 ]
 
 if df_f.empty:
-    st.warning("Sin datos para los filtros seleccionados.")
+    obra_activa_nombre = st.session_state.get("obra_activa", "")
+    if obra_activa_nombre not in df["OBRA"].dropna().unique().tolist():
+        st.info("🔜 Este proyecto aún no tiene evaluaciones registradas.")
+    else:
+        st.warning("Sin datos para los filtros seleccionados.")
     st.stop()
 
 # ── KPIs ───────────────────────────────────────────────────────────────────────
