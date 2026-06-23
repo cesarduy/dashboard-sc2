@@ -369,6 +369,7 @@ with st.sidebar:
         obras_sel = [o for o in ORDEN_OBRAS if o in obras_activas and o in obras_en_df]
 
 # ── Fondo dinámico según selección de obras ───────────────────────────────────
+obras_activas_count = len(st.session_state.get("obras_activas", set()))
 if obras_activas_count == 1 and len(obras_sel) == 1:
     _foto_fondo = obra_foto_b64(obras_sel[0])
 else:
@@ -409,7 +410,6 @@ else:
     """, unsafe_allow_html=True)
 
 # ── Header: se llena aquí con obras_sel ya definida ───────────────────────────
-obras_activas_count = len(st.session_state.get("obras_activas", set()))
 if obras_activas_count == 1 and len(obras_sel) == 1:
     _subtitulo_obra = (
         f'<div style="font-size: 1.6rem; font-weight: 800; color: {NARANJO}; '
