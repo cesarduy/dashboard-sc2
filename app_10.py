@@ -331,7 +331,22 @@ if "obras_activas" not in st.session_state:
 with st.sidebar:
     st.markdown("### Proyectos")
 
-    # CSS base para botones sidebar + selectboxes blancos (cambio 2)
+    obras_en_df = set(df["OBRA"].dropna().unique())
+    obras_activas: set = st.session_state["obras_activas"]
+    todas_activo  = len(obras_activas) == 0
+
+    # Textos exactos de los botones activos para el JS
+    textos_activos = []
+    if todas_activo:
+        textos_activos.append("🏗️  Todos los proyectos")
+    for obra in ORDEN_OBRAS:
+        if obra in obras_activas:
+            es_futuro = obra not in obras_en_df
+            label = obra.replace(" Ii", " II") + (" 🔜" if es_futuro else "")
+            textos_activos.append(label)
+
+    textos_js = str(textos_activos).replace("'", '"')
+
     st.markdown(f"""
     <style>
       section[data-testid="stSidebar"] button {{
@@ -340,7 +355,6 @@ with st.sidebar:
         border: 3px solid transparent !important;
         border-radius: 8px !important;
         font-weight: 500 !important;
-        transition: border-color 0.15s, background-color 0.15s !important;
       }}
       section[data-testid="stSidebar"] button:hover {{
         background-color: rgba(255,255,255,0.14) !important;
@@ -348,38 +362,49 @@ with st.sidebar:
       section[data-testid="stSidebar"] button p {{
         color: white !important;
       }}
-      /* Aro naranjo: se aplica via clase dinámica inyectada abajo */
-      .btn-activo button {{
+      section[data-testid="stSidebar"] button.sb-activo {{
         border-color: {NARANJO} !important;
         background-color: rgba(225,132,38,0.22) !important;
+        box-shadow: 0 0 0 1px {NARANJO} !important;
       }}
     </style>
+    <script>
+    (function() {{
+      var textos = {textos_js};
+      function marcar() {{
+        var sidebar = document.querySelector('section[data-testid="stSidebar"]');
+        if (!sidebar) return;
+        sidebar.querySelectorAll('button').forEach(function(btn) {{
+          var p = btn.querySelector('p');
+          if (!p) return;
+          var txt = p.innerText.trim();
+          if (textos.indexOf(txt) !== -1) {{
+            btn.classList.add('sb-activo');
+          }} else {{
+            btn.classList.remove('sb-activo');
+          }}
+        }});
+      }}
+      setTimeout(marcar, 80);
+      setTimeout(marcar, 300);
+      setTimeout(marcar, 700);
+    }})();
+    </script>
     """, unsafe_allow_html=True)
 
-    obras_en_df = set(df["OBRA"].dropna().unique())
-    obras_activas: set = st.session_state["obras_activas"]
-
     # ── Botón "Todos los proyectos" ──
-    todas_activo = len(obras_activas) == 0
-    if todas_activo:
-        st.markdown('<div class="btn-activo">', unsafe_allow_html=True)
     if st.button("🏗️  Todos los proyectos", key="btn_todas", use_container_width=True):
         st.session_state["obras_activas"] = set()
         st.rerun()
-    if todas_activo:
-        st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown('<hr style="border-color:rgba(255,255,255,0.15); margin:6px 0 10px 0;">', unsafe_allow_html=True)
 
     # ── Lista de proyectos ──
     for obra in ORDEN_OBRAS:
-        es_activo = obra in obras_activas
         es_futuro = obra not in obras_en_df
         label_obra = obra.replace(" Ii", " II")
         suffix = " 🔜" if es_futuro else ""
 
-        if es_activo:
-            st.markdown('<div class="btn-activo">', unsafe_allow_html=True)
         if st.button(f"{label_obra}{suffix}", key=f"btn_{obra}", use_container_width=True):
             nuevas = set(obras_activas)
             if obra in nuevas:
@@ -388,8 +413,6 @@ with st.sidebar:
                 nuevas.add(obra)
             st.session_state["obras_activas"] = nuevas
             st.rerun()
-        if es_activo:
-            st.markdown('</div>', unsafe_allow_html=True)
 
     # ── Derivar obras_sel ──
     obras_activas = st.session_state["obras_activas"]
