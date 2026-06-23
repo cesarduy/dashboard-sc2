@@ -199,8 +199,7 @@ def cargar_datos(file_bytes):
 # ── Header con logo ────────────────────────────────────────────────────────────
 # Intenta logo.png primero, luego logo.jpg
 logo_path = next((p for p in [Path("logo.png"), Path("logo.jpg"), Path("logo.jpeg")] if p.exists()), None)
-if logo_path:
-if logo_path.exists():
+if logo_path is not None:
     ext = "png" if logo_path.suffix == ".png" else "jpeg"
     with open(logo_path, "rb") as f:
         logo_b64 = base64.b64encode(f.read()).decode()
