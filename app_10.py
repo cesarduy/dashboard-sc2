@@ -198,7 +198,8 @@ def cargar_datos(file_bytes):
 
 # ── Header con logo ────────────────────────────────────────────────────────────
 # Intenta logo.png primero, luego logo.jpg
-logo_path = Path("logo.png") if Path("logo.png").exists() else Path("logo.jpg")
+logo_path = next((p for p in [Path("logo.png"), Path("logo.jpg"), Path("logo.jpeg")] if p.exists()), None)
+if logo_path:
 if logo_path.exists():
     ext = "png" if logo_path.suffix == ".png" else "jpeg"
     with open(logo_path, "rb") as f:
