@@ -292,16 +292,15 @@ ORDEN_OBRAS = [
 
 TODAS_KEY = "__TODAS__"
 
-if "obra_activa" not in st.session_state:
-    st.session_state["obra_activa"] = TODAS_KEY
+# session_state: set de obras seleccionadas (vacío = todas)
+if "obras_activas" not in st.session_state:
+    st.session_state["obras_activas"] = set()  # vacío => TODAS
 
 with st.sidebar:
     st.markdown("### Proyectos")
 
-    # CSS para la lista de proyectos
     st.markdown(f"""
     <style>
-      /* ── Forzar texto blanco en todos los botones del sidebar ── */
       section[data-testid="stSidebar"] button {{
         color: white !important;
         background-color: rgba(255,255,255,0.07) !important;
@@ -316,98 +315,61 @@ with st.sidebar:
       section[data-testid="stSidebar"] button p {{
         color: white !important;
       }}
-
-      /* Aro naranjo grueso en botón activo (obra seleccionada) */
-      section[data-testid="stSidebar"] button[data-activo="true"] {{
-        border-color: {NARANJO} !important;
-        background-color: rgba(225,132,38,0.18) !important;
-      }}
     </style>
     """, unsafe_allow_html=True)
 
-    # Botón "Todos los proyectos" — aro naranjo cuando está activo
-    todas_activo = st.session_state["obra_activa"] == TODAS_KEY
-    border_todas = f"3px solid {NARANJO}" if todas_activo else "3px solid transparent"
-    bg_todas = "rgba(225,132,38,0.18)" if todas_activo else "rgba(255,255,255,0.07)"
-    st.markdown(f"""
-    <style>
-      div[data-testid="stButton"] > button[kind="secondary"]#btn_todas_wrap {{
-        border: {border_todas} !important;
-        background: {bg_todas} !important;
-      }}
-    </style>""", unsafe_allow_html=True)
+    obras_en_df = set(df["OBRA"].dropna().unique())
+    obras_activas: set = st.session_state["obras_activas"]
 
-    if st.button(
-        "🏗️  Todos los proyectos",
-        key="btn_todas",
-        use_container_width=True,
-    ):
-        st.session_state["obra_activa"] = TODAS_KEY
-        st.rerun()
-
-    # Inyectar estilo inline al último botón renderizado para marcar activo
+    # ── Botón "Todos los proyectos" ──
+    todas_activo = len(obras_activas) == 0
     if todas_activo:
-        st.markdown(f"""
-        <style>
-          section[data-testid="stSidebar"] div[data-testid="stButton"]:first-of-type button {{
+        st.markdown(f"""<style>
+          section[data-testid="stSidebar"] div[data-testid="stButton"]:nth-of-type(1) button {{
             border-color: {NARANJO} !important;
             background-color: rgba(225,132,38,0.18) !important;
           }}
         </style>""", unsafe_allow_html=True)
 
+    if st.button("🏗️  Todos los proyectos", key="btn_todas", use_container_width=True):
+        st.session_state["obras_activas"] = set()
+        st.rerun()
+
     st.markdown('<hr style="border-color:rgba(255,255,255,0.15); margin:6px 0 10px 0;">', unsafe_allow_html=True)
 
-    # Lista de proyectos con foto miniatura — íconos 54px (factor 1.5)
-    obras_en_df = set(df["OBRA"].dropna().unique())
-
-    for obra in ORDEN_OBRAS:
-        foto_b64_mini = obra_foto_b64(obra)
-        es_activo = st.session_state["obra_activa"] == obra
+    # ── Lista de proyectos — solo botón, sin ícono ──
+    for i, obra in enumerate(ORDEN_OBRAS, start=2):
+        es_activo = obra in obras_activas
         es_futuro = obra not in obras_en_df
-        suffix = " 🔜" if es_futuro else ""
         label_obra = obra.replace(" Ii", " II")
+        suffix = " 🔜" if es_futuro else ""
 
-        col_ico, col_btn = st.columns([1, 4])
-        with col_ico:
-            border_ico = f"3px solid {NARANJO}" if es_activo else "3px solid rgba(255,255,255,0.2)"
-            if foto_b64_mini:
-                st.markdown(
-                    f'<img src="{foto_b64_mini}" style="width:54px;height:54px;border-radius:50%;'
-                    f'object-fit:cover;border:{border_ico};margin-top:4px;display:block;">',
-                    unsafe_allow_html=True,
-                )
+        if es_activo:
+            st.markdown(f"""<style>
+              section[data-testid="stSidebar"] div[data-testid="stButton"]:nth-of-type({i}) button {{
+                border-color: {NARANJO} !important;
+                background-color: rgba(225,132,38,0.18) !important;
+              }}
+            </style>""", unsafe_allow_html=True)
+
+        if st.button(f"{label_obra}{suffix}", key=f"btn_{obra}", use_container_width=True):
+            nuevas = set(obras_activas)
+            if obra in nuevas:
+                nuevas.discard(obra)
             else:
-                emoji = "🔜" if es_futuro else "🏘️"
-                st.markdown(
-                    f'<div style="width:54px;height:54px;border-radius:50%;background:rgba(255,255,255,0.12);'
-                    f'display:flex;align-items:center;justify-content:center;margin-top:4px;font-size:1.4rem;'
-                    f'border:{border_ico};">{emoji}</div>',
-                    unsafe_allow_html=True,
-                )
-        with col_btn:
-            if st.button(f"{label_obra}{suffix}", key=f"btn_{obra}", use_container_width=True):
-                st.session_state["obra_activa"] = obra
-                st.rerun()
-            # Aro naranjo sobre el botón activo vía CSS apuntando al último botón renderizado
-            if es_activo:
-                st.markdown(f"""
-                <style>
-                  section[data-testid="stSidebar"] div[data-testid="stButton"]:has(button[key="btn_{obra}"]) button,
-                  section[data-testid="stSidebar"] div[data-testid="stButton"] button[aria-label="{label_obra}{suffix}"] {{
-                    border-color: {NARANJO} !important;
-                    background-color: rgba(225,132,38,0.18) !important;
-                  }}
-                </style>""", unsafe_allow_html=True)
+                nuevas.add(obra)
+            st.session_state["obras_activas"] = nuevas
+            st.rerun()
 
-    # Derivar obras_sel desde obra_activa
-    obra_activa = st.session_state["obra_activa"]
-    if obra_activa == TODAS_KEY:
+    # ── Derivar obras_sel ──
+    obras_activas = st.session_state["obras_activas"]
+    if len(obras_activas) == 0:
         obras_sel = [o for o in ORDEN_OBRAS if o in obras_en_df]
     else:
-        obras_sel = [obra_activa] if obra_activa in obras_en_df else []
+        obras_sel = [o for o in ORDEN_OBRAS if o in obras_activas and o in obras_en_df]
 
 # ── Fondo dinámico según selección de obras ───────────────────────────────────
-if len(obras_sel) == 1:
+if obras_activas_count == 1 and len(obras_sel) == 1:
     _foto_fondo = obra_foto_b64(obras_sel[0])
 else:
     _foto_fondo = None
@@ -447,11 +409,18 @@ else:
     """, unsafe_allow_html=True)
 
 # ── Header: se llena aquí con obras_sel ya definida ───────────────────────────
-if len(obras_sel) == 1:
+obras_activas_count = len(st.session_state.get("obras_activas", set()))
+if obras_activas_count == 1 and len(obras_sel) == 1:
     _subtitulo_obra = (
         f'<div style="font-size: 1.6rem; font-weight: 800; color: {NARANJO}; '
         f'line-height: 1.2; margin-top: 4px; letter-spacing: 0.02em;">'
-        f'{obras_sel[0].upper().replace(" II", " II").replace("PEDRO LUNA II", "PEDRO LUNA II")}</div>'
+        f'{obras_sel[0].replace(" Ii", " II").upper()}</div>'
+    )
+elif obras_activas_count >= 2:
+    _subtitulo_obra = (
+        f'<div style="font-size: 1.3rem; font-weight: 700; color: {NARANJO}; '
+        f'line-height: 1.2; margin-top: 4px; letter-spacing: 0.04em;">'
+        f'VARIAS OBRAS</div>'
     )
 else:
     _subtitulo_obra = (
@@ -478,9 +447,6 @@ _header_placeholder.markdown(f"""
       Evaluación de Subcontratos
     </div>
     {_subtitulo_obra}
-    <div style="font-size: 0.95rem; color: {NARANJO}; font-weight: 500; margin-top: 4px;">
-      Sistema de Gestión de Proveedores
-    </div>
   </div>
 </div>
 """, unsafe_allow_html=True)
