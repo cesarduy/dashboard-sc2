@@ -233,6 +233,8 @@ ORDEN_OBRAS = [
 
 if "obras_activas" not in st.session_state:
     st.session_state["obras_activas"] = set()
+if "vista" not in st.session_state:
+    st.session_state["vista"] = "dashboard"  # "dashboard" | "reunion"
 
 with st.sidebar:
     st.markdown("### Proyectos")
@@ -261,9 +263,17 @@ with st.sidebar:
         label_obra = obra.replace(" Ii"," II")
         if st.button(f"{label_obra}{' 🔜' if es_futuro else ''}", key=f"btn_{obra}", use_container_width=True):
             nuevas = set(obras_activas)
-            if obra in nuevas: nuevas.discard(obra)
-            else: nuevas.add(obra)
+            if obra in nuevas:
+                nuevas.discard(obra)
+            else:
+                nuevas.add(obra)
+                st.session_state["vista"] = "dashboard"  # resetear vista al cambiar obra
             st.session_state["obras_activas"] = nuevas; st.rerun()
+        # Botón reunión: solo si esta obra está activa y es la única seleccionada
+        if obra in obras_activas and len(obras_activas) == 1 and not es_futuro:
+            if st.button(f"📋 Vista reunión", key=f"btn_reunion_{obra}", use_container_width=True):
+                st.session_state["vista"] = "reunion"
+                st.rerun()
     obras_activas = st.session_state["obras_activas"]
     if len(obras_activas) == 0:
         obras_sel = [o for o in ORDEN_OBRAS if o in obras_en_df]
@@ -295,6 +305,165 @@ df_f = df[df["OBRA"].isin(obras_sel) & df["ESTADO"].isin(["APROBADO","MEJORAR","
 if df_f.empty:
     st.info("🔜 Este proyecto aún no tiene evaluaciones registradas.")
     st.stop()
+
+# ══════════════════════════════════════════════════════════════════════════════
+# VISTA REUNIÓN — se muestra en lugar del dashboard cuando está activa
+# ══════════════════════════════════════════════════════════════════════════════
+if st.session_state.get("vista") == "reunion" and obras_activas_count == 1 and len(obras_sel) == 1:
+    obra_reunion = obras_sel[0]
+    obra_label   = obra_reunion.replace(" Ii"," II").upper()
+
+    # Última evaluación de esta obra
+    df_obra = df_f[df_f["OBRA"] == obra_reunion]
+    ultima_eva = int(df_obra["N_EVA"].max())
+    df_ult = df_obra[df_obra["N_EVA"] == ultima_eva].copy()
+
+    # ── Header reunión ─────────────────────────────────────────────────────────
+    col_hdr, col_back = st.columns([8, 1])
+    with col_hdr:
+        st.markdown(f"""
+        <div style="background:{AZUL};padding:20px 28px;border-radius:12px;margin-bottom:20px;border-bottom:4px solid {NARANJO};">
+          <div style="color:white;font-size:0.85rem;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;opacity:0.7;">Vista de Reunión</div>
+          <div style="color:white;font-size:2rem;font-weight:800;line-height:1.2;">{obra_label}</div>
+          <div style="color:{NARANJO};font-size:1rem;font-weight:600;margin-top:4px;">Evaluación N°{ultima_eva} — resultados por subcontrato</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with col_back:
+        st.markdown("<div style='padding-top:30px'>", unsafe_allow_html=True)
+        if st.button("← Volver", key="btn_volver_reunion"):
+            st.session_state["vista"] = "dashboard"
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # ── Selector de criterio ───────────────────────────────────────────────────
+    # Construir lista de opciones: "Nota final" + todos los criterios con datos
+    crits_disp = [c for c in TODOS_CRITERIOS if c in df_ult.columns and df_ult[c].notna().any()]
+
+    opciones = {"Nota final (general)": "NOTA_FINAL"}
+    for area, lista in CRITERIOS.items():
+        for c in lista:
+            if c in crits_disp:
+                etq = f"[{area}] {ETIQUETAS_CORTAS.get(c, c[:40])}"
+                opciones[etq] = c
+
+    col_sel1, col_sel2, col_sel3 = st.columns([4, 2, 2])
+    with col_sel1:
+        criterio_label = st.selectbox(
+            "📌 Filtrar por criterio",
+            options=list(opciones.keys()),
+            key="reunion_criterio",
+        )
+    criterio_col = opciones[criterio_label]
+
+    with col_sel2:
+        orden = st.radio("Ordenar", ["Mayor a menor ↓", "Menor a mayor ↑"],
+                         key="reunion_orden", horizontal=True)
+
+    with col_sel3:
+        mostrar_estado = st.checkbox("Colorear por estado", value=True, key="reunion_estado")
+
+    # ── Preparar datos ─────────────────────────────────────────────────────────
+    df_reu = df_ult[["SUBCONTRATO","ACTIVIDAD","ESTADO","NOTA_FINAL"] + ([criterio_col] if criterio_col != "NOTA_FINAL" else [])].copy()
+    df_reu[criterio_col] = pd.to_numeric(df_reu[criterio_col], errors="coerce")
+    df_reu = df_reu.dropna(subset=[criterio_col]).sort_values(
+        criterio_col, ascending=(orden == "Menor a mayor ↑")
+    )
+    df_reu[criterio_col] = df_reu[criterio_col].round(2)
+
+    # ── KPIs reunión ──────────────────────────────────────────────────────────
+    k_a, k_b, k_c, k_d = st.columns(4)
+    n_total = len(df_reu)
+    n_apro  = (df_reu["ESTADO"] == "APROBADO").sum()
+    n_mej   = (df_reu["ESTADO"] == "MEJORAR").sum()
+    n_rep   = (df_reu["ESTADO"] == "REPROBADO").sum()
+    prom_crit = df_reu[criterio_col].mean()
+    for col_k, lbl, val, sub in [
+        (k_a, "Subcontratos evaluados", n_total, f"Eva N°{ultima_eva}"),
+        (k_b, "✅ Aprobados", n_apro, f"{n_apro/n_total*100:.0f}%"),
+        (k_c, "⚠️ Mejorar", n_mej, f"{n_mej/n_total*100:.0f}%"),
+        (k_d, f"Promedio — {criterio_label[:25]}", f"{prom_crit:.2f}", "sobre 7.0"),
+    ]:
+        col_k.markdown(f'<div class="kpi-card"><div class="kpi-label">{lbl}</div><div class="kpi-value">{val}</div><div class="kpi-sub">{sub}</div></div>', unsafe_allow_html=True)
+
+    st.markdown("<div style='margin-top:20px'></div>", unsafe_allow_html=True)
+
+    # ── Gráfico principal ──────────────────────────────────────────────────────
+    # Colores por estado o color único
+    if mostrar_estado:
+        df_reu["_color"] = df_reu["ESTADO"].map(
+            {"APROBADO":"#2ECC71","MEJORAR":NARANJO,"REPROBADO":TERRACOTA}
+        ).fillna(GRIS)
+        colores = df_reu["_color"].tolist()
+    else:
+        colores = [AZUL] * len(df_reu)
+
+    # Etiqueta Y: subcontrato + actividad
+    df_reu["_label"] = df_reu.apply(
+        lambda r: f"{r['SUBCONTRATO'][:32]}  [{r['ACTIVIDAD'][:18] if pd.notna(r.get('ACTIVIDAD')) else '—'}]",
+        axis=1
+    )
+
+    fig_reu = go.Figure(go.Bar(
+        x=df_reu[criterio_col],
+        y=df_reu["_label"],
+        orientation="h",
+        text=df_reu[criterio_col],
+        texttemplate="%{text:.2f}",
+        textposition="outside",
+        marker_color=colores,
+        marker_line_width=0,
+        hovertemplate="<b>%{y}</b><br>Nota: %{x:.2f}<extra></extra>",
+    ))
+
+    # Líneas de referencia
+    fig_reu.add_vline(x=5.5, line_dash="dash", line_color="#2ECC71",
+                      annotation_text="Aprobado ≥5.5", annotation_position="top right")
+    fig_reu.add_vline(x=4.0, line_dash="dash", line_color=NARANJO,
+                      annotation_text="Mejorar ≥4.0", annotation_position="bottom right")
+
+    alto = max(420, len(df_reu) * 42)
+    fig_reu.update_layout(
+        height=alto,
+        xaxis_range=[0, 7.5],
+        xaxis_title="Nota (1 a 7)",
+        yaxis_title="",
+        showlegend=False,
+        margin=dict(l=320, r=80, t=30, b=40),
+    )
+    st.plotly_chart(plotly_layout(fig_reu), use_container_width=True)
+
+    # ── Leyenda de colores ─────────────────────────────────────────────────────
+    if mostrar_estado:
+        st.markdown(f"""
+        <div style="display:flex;gap:20px;margin-top:8px;margin-bottom:24px;">
+          <span style="font-size:0.85rem;"><span style="display:inline-block;width:14px;height:14px;background:#2ECC71;border-radius:3px;vertical-align:middle;margin-right:6px;"></span>Aprobado (≥5.5)</span>
+          <span style="font-size:0.85rem;"><span style="display:inline-block;width:14px;height:14px;background:{NARANJO};border-radius:3px;vertical-align:middle;margin-right:6px;"></span>Mejorar (≥4.0)</span>
+          <span style="font-size:0.85rem;"><span style="display:inline-block;width:14px;height:14px;background:{TERRACOTA};border-radius:3px;vertical-align:middle;margin-right:6px;"></span>Reprobado (&lt;4.0)</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ── Tabla detalle ──────────────────────────────────────────────────────────
+    with st.expander("📋 Ver tabla completa de la reunión"):
+        cols_tabla = ["SUBCONTRATO","ACTIVIDAD","ESTADO","TERRENO","RRHH","SSOMA","CALIDAD","NOTA_FINAL"]
+        cols_tabla = [c for c in cols_tabla if c in df_ult.columns]
+        df_tabla = df_ult[cols_tabla].sort_values("NOTA_FINAL", ascending=False).reset_index(drop=True)
+        for c in ["TERRENO","RRHH","SSOMA","CALIDAD","NOTA_FINAL"]:
+            if c in df_tabla.columns:
+                df_tabla[c] = pd.to_numeric(df_tabla[c], errors="coerce").round(2)
+
+        def _color_fila(row):
+            color = {"APROBADO":"#d4edda","MEJORAR":"#fff3cd","REPROBADO":"#f8d7da"}.get(row.get("ESTADO",""),"")
+            return [f"background-color:{color}" for _ in row]
+        try:    styled_t = df_tabla.style.apply(_color_fila, axis=1)
+        except: styled_t = df_tabla
+        st.dataframe(styled_t, use_container_width=True, height=400)
+
+    # Footer reunión
+    st.markdown(f"""<div style="text-align:center;padding:20px;color:{AZUL_MED};font-size:0.78rem;margin-top:30px;">
+      Constructora Londres · Reunión de Subcontratos · {obra_label} · Eva N°{ultima_eva} · {pd.Timestamp.now().strftime('%d/%m/%Y')}
+    </div>""", unsafe_allow_html=True)
+
+    st.stop()  # No renderizar el dashboard debajo
 
 # ── KPIs ───────────────────────────────────────────────────────────────────────
 total = len(df_f)
