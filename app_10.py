@@ -6,6 +6,7 @@ import plotly.graph_objects as go
 from io import BytesIO
 import base64
 from pathlib import Path
+from PIL import Image
 
 # ── Paleta Constructora Londres ────────────────────────────────────────────────
 AZUL     = "#1A1846"
@@ -16,9 +17,13 @@ AZUL_MED = "#3D3B65"
 TERRACOTA= "#B04D2F"
 ARENA    = "#D9B98A"
 
+# ── Favicon ────────────────────────────────────────────────────────────────────
+_favicon_path = next((p for p in [Path("logo_icono.jpeg"), Path("logo_icono.png"), Path("logo.jpeg"), Path("logo.jpg")] if p.exists()), None)
+_page_icon = Image.open(_favicon_path) if _favicon_path else "🏗️"
+
 st.set_page_config(
     page_title="Evaluación Subcontratos — Constructora Londres",
-    page_icon="🏗️",
+    page_icon=_page_icon,
     layout="wide"
 )
 
@@ -116,12 +121,20 @@ st.markdown(f"""
   }}
   /* Sin fondo naranja en labels de filtros */
   section[data-testid="stSidebar"] label p {{
-    background: none !important;
+    background: transparent !important;
     background-color: transparent !important;
-    font-weight: 600;
-    font-size: 0.85rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    background-image: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    font-weight: 600 !important;
+    font-size: 0.85rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.04em !important;
+  }}
+  section[data-testid="stSidebar"] .stMarkdown p,
+  section[data-testid="stSidebar"] .stMultiSelect > label > div > p {{
+    background: transparent !important;
+    background-color: transparent !important;
   }}
 
   /* Botones y tags */
@@ -305,26 +318,38 @@ df_todos_ver = cargar_datos(excel_path.read_bytes())
 nombres_lista = sorted(df_todos_ver["SUBCONTRATO"].dropna().unique().tolist())
 ruts_lista    = sorted(df_todos_ver["RUT"].astype(str).dropna().unique().tolist()) if "RUT" in df_todos_ver.columns else []
 
-col_b1, col_b2 = st.columns(2)
+col_b1, col_b2, col_b3 = st.columns([5, 5, 1])
+
+# Inicializar session_state
+if "ver_nombre" not in st.session_state:
+    st.session_state["ver_nombre"] = ""
+if "ver_rut" not in st.session_state:
+    st.session_state["ver_rut"] = ""
+
+with col_b3:
+    st.markdown("<div style='padding-top:28px'>", unsafe_allow_html=True)
+    if st.button("✕", help="Limpiar búsqueda"):
+        st.session_state["ver_nombre"] = ""
+        st.session_state["ver_rut"] = ""
+        st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+
 with col_b1:
     buscar_nombre = st.selectbox(
         "Buscar por nombre",
         options=[""] + nombres_lista,
-        index=0,
+        index=0 if st.session_state["ver_nombre"] == "" else ([""] + nombres_lista).index(st.session_state["ver_nombre"]),
         format_func=lambda x: "Escribe o selecciona un nombre..." if x == "" else x,
+        key="ver_nombre",
     )
 with col_b2:
     buscar_rut = st.selectbox(
         "Buscar por RUT",
         options=[""] + ruts_lista,
-        index=0,
+        index=0 if st.session_state["ver_rut"] == "" else ([""] + ruts_lista).index(st.session_state["ver_rut"]),
         format_func=lambda x: "Escribe o selecciona un RUT..." if x == "" else x,
+        key="ver_rut",
     )
-
-# Botón X para limpiar
-if buscar_nombre or buscar_rut:
-    if st.button("✕ Limpiar búsqueda"):
-        st.rerun()
 
 if buscar_nombre or buscar_rut:
     df_busq = df_todos_ver.copy()
