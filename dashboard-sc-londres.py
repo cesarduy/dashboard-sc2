@@ -18,7 +18,7 @@ ARENA    = "#D9B98A"
 
 st.set_page_config(
     page_title="Evaluación Subcontratos — Constructora Londres",
-    page_icon="🏗️",
+    page_icon="logo_icono.jpeg",
     layout="wide"
 )
 
