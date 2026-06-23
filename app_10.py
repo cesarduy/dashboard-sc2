@@ -35,7 +35,15 @@ st.markdown(f"""
   html, body, [class*="css"] {{
     font-family: 'Hanken Grotesk', sans-serif;
     background-color: {HUESO};
-    color: {AZUL};
+    color: #0D0C25;
+  }}
+
+  /* Textos más oscuros para contraste sobre fondo con foto */
+  h1, h2, h3, h4, h5, h6, p, span, div, label {{
+    color: #0D0C25;
+  }}
+  .stMarkdown, .stText {{
+    color: #0D0C25 !important;
   }}
 
   /* Header principal */
@@ -252,8 +260,9 @@ FOTOS_OBRAS: dict = {
     # Obras sin foto: Colina Ii, Delia Del Carril, Pedro Luna I, Adriana Olguin -> fondo blanco
 }
 
+@st.cache_data
 def obra_foto_b64(nombre_obra: str) -> str | None:
-    """Devuelve la imagen de la obra en base64, o None si no existe."""
+    """Devuelve la imagen de la obra en base64, cacheada por sesión."""
     archivo = FOTOS_OBRAS.get(nombre_obra)
     if archivo:
         p = Path(archivo)
@@ -292,80 +301,42 @@ with st.sidebar:
     # CSS para la lista de proyectos
     st.markdown(f"""
     <style>
-      .proyecto-btn {{
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        width: 100%;
-        padding: 8px 10px;
-        border-radius: 8px;
-        cursor: pointer;
-        background: transparent;
-        border: 2px solid transparent;
-        color: white;
-        font-family: 'Hanken Grotesk', sans-serif;
-        font-size: 0.88rem;
-        font-weight: 500;
-        text-align: left;
-        margin-bottom: 4px;
-        transition: border-color 0.15s;
+      /* ── Forzar texto blanco en todos los botones del sidebar ── */
+      section[data-testid="stSidebar"] button {{
+        color: white !important;
+        background-color: rgba(255,255,255,0.07) !important;
+        border: 3px solid transparent !important;
+        border-radius: 8px !important;
+        font-weight: 500 !important;
+        transition: border-color 0.15s, background-color 0.15s !important;
       }}
-      .proyecto-btn:hover {{
-        background: rgba(255,255,255,0.08);
+      section[data-testid="stSidebar"] button:hover {{
+        background-color: rgba(255,255,255,0.14) !important;
       }}
-      .proyecto-btn.activo {{
-        border-color: {NARANJO};
-        background: rgba(225,132,38,0.15);
+      section[data-testid="stSidebar"] button p {{
+        color: white !important;
       }}
-      .proyecto-btn img {{
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        object-fit: cover;
-        flex-shrink: 0;
-        border: 1px solid rgba(255,255,255,0.2);
-      }}
-      .proyecto-btn .icono-placeholder {{
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        background: rgba(255,255,255,0.15);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-        font-size: 1rem;
-      }}
-      .proyecto-todas {{
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        width: 100%;
-        padding: 8px 10px;
-        border-radius: 8px;
-        cursor: pointer;
-        background: transparent;
-        border: 2px solid transparent;
-        color: white;
-        font-family: 'Hanken Grotesk', sans-serif;
-        font-size: 0.88rem;
-        font-weight: 600;
-        text-align: left;
-        margin-bottom: 8px;
-        transition: border-color 0.15s;
-      }}
-      .proyecto-todas:hover {{
-        background: rgba(255,255,255,0.08);
-      }}
-      .proyecto-todas.activo {{
-        border-color: {NARANJO};
-        background: rgba(225,132,38,0.15);
+
+      /* Aro naranjo grueso en botón activo (obra seleccionada) */
+      section[data-testid="stSidebar"] button[data-activo="true"] {{
+        border-color: {NARANJO} !important;
+        background-color: rgba(225,132,38,0.18) !important;
       }}
     </style>
     """, unsafe_allow_html=True)
 
-    # Botón "Todos los proyectos"
-    todas_activo = "activo" if st.session_state["obra_activa"] == TODAS_KEY else ""
+    # Botón "Todos los proyectos" — aro naranjo cuando está activo
+    todas_activo = st.session_state["obra_activa"] == TODAS_KEY
+    border_todas = f"3px solid {NARANJO}" if todas_activo else "3px solid transparent"
+    bg_todas = "rgba(225,132,38,0.18)" if todas_activo else "rgba(255,255,255,0.07)"
+    st.markdown(f"""
+    <style>
+      div[data-testid="stButton"] > button[kind="secondary"]#btn_todas_wrap {{
+        border: {border_todas} !important;
+        background: {bg_todas} !important;
+      }}
+    </style>""", unsafe_allow_html=True)
+
     if st.button(
         "🏗️  Todos los proyectos",
         key="btn_todas",
@@ -374,48 +345,59 @@ with st.sidebar:
         st.session_state["obra_activa"] = TODAS_KEY
         st.rerun()
 
+    # Inyectar estilo inline al último botón renderizado para marcar activo
+    if todas_activo:
+        st.markdown(f"""
+        <style>
+          section[data-testid="stSidebar"] div[data-testid="stButton"]:first-of-type button {{
+            border-color: {NARANJO} !important;
+            background-color: rgba(225,132,38,0.18) !important;
+          }}
+        </style>""", unsafe_allow_html=True)
+
     st.markdown('<hr style="border-color:rgba(255,255,255,0.15); margin:6px 0 10px 0;">', unsafe_allow_html=True)
 
-    # Lista de proyectos con foto miniatura
+    # Lista de proyectos con foto miniatura — íconos 54px (factor 1.5)
     obras_en_df = set(df["OBRA"].dropna().unique())
 
     for obra in ORDEN_OBRAS:
         foto_b64_mini = obra_foto_b64(obra)
-        activo_class = "activo" if st.session_state["obra_activa"] == obra else ""
-
-        if foto_b64_mini:
-            icono_html = f'<img src="{foto_b64_mini}">'
-        else:
-            icono_html = '<div class="icono-placeholder">🏘️</div>'
-
-        # Etiqueta del botón (sin HTML — Streamlit no soporta HTML en labels de botón)
-        label_obra = obra.replace(" Ii", " II").replace(" I", " I")
+        es_activo = st.session_state["obra_activa"] == obra
         es_futuro = obra not in obras_en_df
         suffix = " 🔜" if es_futuro else ""
+        label_obra = obra.replace(" Ii", " II")
 
         col_ico, col_btn = st.columns([1, 4])
         with col_ico:
+            border_ico = f"3px solid {NARANJO}" if es_activo else "3px solid rgba(255,255,255,0.2)"
             if foto_b64_mini:
-                border_color = NARANJO if st.session_state["obra_activa"] == obra else "rgba(255,255,255,0.2)"
                 st.markdown(
-                    f'<img src="{foto_b64_mini}" style="width:36px;height:36px;border-radius:50%;'
-                    f'object-fit:cover;border:2px solid {border_color};margin-top:4px;">',
+                    f'<img src="{foto_b64_mini}" style="width:54px;height:54px;border-radius:50%;'
+                    f'object-fit:cover;border:{border_ico};margin-top:4px;display:block;">',
                     unsafe_allow_html=True,
                 )
             else:
                 emoji = "🔜" if es_futuro else "🏘️"
                 st.markdown(
-                    f'<div style="width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.12);'
-                    f'display:flex;align-items:center;justify-content:center;margin-top:4px;font-size:1rem;'
-                    f'border:2px solid {"rgba(225,132,38,0.8)" if st.session_state["obra_activa"] == obra else "rgba(255,255,255,0.2)"};">'
-                    f'{emoji}</div>',
+                    f'<div style="width:54px;height:54px;border-radius:50%;background:rgba(255,255,255,0.12);'
+                    f'display:flex;align-items:center;justify-content:center;margin-top:4px;font-size:1.4rem;'
+                    f'border:{border_ico};">{emoji}</div>',
                     unsafe_allow_html=True,
                 )
         with col_btn:
-            btn_label = f"{label_obra}{suffix}"
-            if st.button(btn_label, key=f"btn_{obra}", use_container_width=True):
+            if st.button(f"{label_obra}{suffix}", key=f"btn_{obra}", use_container_width=True):
                 st.session_state["obra_activa"] = obra
                 st.rerun()
+            # Aro naranjo sobre el botón activo vía CSS apuntando al último botón renderizado
+            if es_activo:
+                st.markdown(f"""
+                <style>
+                  section[data-testid="stSidebar"] div[data-testid="stButton"]:has(button[key="btn_{obra}"]) button,
+                  section[data-testid="stSidebar"] div[data-testid="stButton"] button[aria-label="{label_obra}{suffix}"] {{
+                    border-color: {NARANJO} !important;
+                    background-color: rgba(225,132,38,0.18) !important;
+                  }}
+                </style>""", unsafe_allow_html=True)
 
     # Derivar obras_sel desde obra_activa
     obra_activa = st.session_state["obra_activa"]
@@ -443,7 +425,7 @@ if _foto_fondo:
         content: "";
         position: fixed;
         inset: 0;
-        background: rgba(255,255,255,0.80);
+        background: rgba(255,255,255,0.90);
         z-index: 0;
         pointer-events: none;
       }}
