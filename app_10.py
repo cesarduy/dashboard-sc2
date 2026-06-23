@@ -143,6 +143,25 @@ st.markdown(f"""
   .stMultiSelect [data-baseweb="tag"] {{
     background-color: {NARANJO} !important;
   }}
+
+  /* Selectboxes blancos en área principal */
+  .stSelectbox > div > div,
+  div[data-baseweb="select"] > div {{
+    background-color: #ffffff !important;
+    border-color: #cccccc !important;
+  }}
+  div[data-baseweb="select"] span {{
+    color: {AZUL} !important;
+  }}
+  div[data-baseweb="popover"] ul {{
+    background-color: #ffffff !important;
+  }}
+  div[data-baseweb="popover"] li {{
+    color: {AZUL} !important;
+  }}
+  div[data-baseweb="popover"] li:hover {{
+    background-color: {GRIS} !important;
+  }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -165,11 +184,24 @@ def plotly_layout(fig):
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Hanken Grotesk, sans-serif", color=AZUL),
+        font=dict(family="Hanken Grotesk, sans-serif", color="#1A1846"),
         margin=dict(t=15, b=15, l=10, r=10),
     )
-    fig.update_xaxes(gridcolor=GRIS, zeroline=False)
-    fig.update_yaxes(gridcolor=GRIS, zeroline=False)
+    fig.update_xaxes(
+        gridcolor="#CCCCCC",
+        zeroline=False,
+        tickfont=dict(color="#1A1846", size=12),
+        title_font=dict(color="#1A1846", size=13),
+    )
+    fig.update_yaxes(
+        gridcolor="#CCCCCC",
+        zeroline=False,
+        tickfont=dict(color="#1A1846", size=12),
+        title_font=dict(color="#1A1846", size=13),
+    )
+    fig.update_layout(
+        legend=dict(font=dict(color="#1A1846", size=12)),
+    )
     return fig
 
 def top5_bar(df_area, area, color):
@@ -299,6 +331,7 @@ if "obras_activas" not in st.session_state:
 with st.sidebar:
     st.markdown("### Proyectos")
 
+    # CSS base para botones sidebar + selectboxes blancos (cambio 2)
     st.markdown(f"""
     <style>
       section[data-testid="stSidebar"] button {{
@@ -315,6 +348,11 @@ with st.sidebar:
       section[data-testid="stSidebar"] button p {{
         color: white !important;
       }}
+      /* Aro naranjo: se aplica via clase dinámica inyectada abajo */
+      .btn-activo button {{
+        border-color: {NARANJO} !important;
+        background-color: rgba(225,132,38,0.22) !important;
+      }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -324,34 +362,24 @@ with st.sidebar:
     # ── Botón "Todos los proyectos" ──
     todas_activo = len(obras_activas) == 0
     if todas_activo:
-        st.markdown(f"""<style>
-          section[data-testid="stSidebar"] div[data-testid="stButton"]:nth-of-type(1) button {{
-            border-color: {NARANJO} !important;
-            background-color: rgba(225,132,38,0.18) !important;
-          }}
-        </style>""", unsafe_allow_html=True)
-
+        st.markdown('<div class="btn-activo">', unsafe_allow_html=True)
     if st.button("🏗️  Todos los proyectos", key="btn_todas", use_container_width=True):
         st.session_state["obras_activas"] = set()
         st.rerun()
+    if todas_activo:
+        st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown('<hr style="border-color:rgba(255,255,255,0.15); margin:6px 0 10px 0;">', unsafe_allow_html=True)
 
-    # ── Lista de proyectos — solo botón, sin ícono ──
-    for i, obra in enumerate(ORDEN_OBRAS, start=2):
+    # ── Lista de proyectos ──
+    for obra in ORDEN_OBRAS:
         es_activo = obra in obras_activas
         es_futuro = obra not in obras_en_df
         label_obra = obra.replace(" Ii", " II")
         suffix = " 🔜" if es_futuro else ""
 
         if es_activo:
-            st.markdown(f"""<style>
-              section[data-testid="stSidebar"] div[data-testid="stButton"]:nth-of-type({i}) button {{
-                border-color: {NARANJO} !important;
-                background-color: rgba(225,132,38,0.18) !important;
-              }}
-            </style>""", unsafe_allow_html=True)
-
+            st.markdown('<div class="btn-activo">', unsafe_allow_html=True)
         if st.button(f"{label_obra}{suffix}", key=f"btn_{obra}", use_container_width=True):
             nuevas = set(obras_activas)
             if obra in nuevas:
@@ -360,6 +388,8 @@ with st.sidebar:
                 nuevas.add(obra)
             st.session_state["obras_activas"] = nuevas
             st.rerun()
+        if es_activo:
+            st.markdown('</div>', unsafe_allow_html=True)
 
     # ── Derivar obras_sel ──
     obras_activas = st.session_state["obras_activas"]
