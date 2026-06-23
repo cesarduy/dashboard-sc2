@@ -212,6 +212,48 @@ def cargar_datos(file_bytes):
     return df
 
 
+# ── Fondo dinámico según selección de obras ───────────────────────────────────
+if len(obras_sel) == 1:
+    _foto_fondo = obra_foto_b64(obras_sel[0])
+else:
+    _foto_fondo = None
+
+if _foto_fondo:
+    st.markdown(f"""
+    <style>
+      /* Fondo con foto de la obra al 60% de transparencia */
+      .stApp {{
+        background-image: url("{_foto_fondo}");
+        background-size: cover;
+        background-attachment: fixed;
+        background-position: center;
+      }}
+      .stApp::before {{
+        content: "";
+        position: fixed;
+        inset: 0;
+        background: rgba(255,255,255,0.60);
+        z-index: 0;
+        pointer-events: none;
+      }}
+      /* Asegurar que el contenido quede sobre la capa */
+      .stApp > * {{
+        position: relative;
+        z-index: 1;
+      }}
+    </style>
+    """, unsafe_allow_html=True)
+else:
+    st.markdown("""
+    <style>
+      .stApp {
+        background-image: none !important;
+        background-color: #F6F1E9;
+      }
+      .stApp::before { display: none; }
+    </style>
+    """, unsafe_allow_html=True)
+
 # ── Header con logo ────────────────────────────────────────────────────────────
 # Intenta logo.png primero, luego logo.jpg
 logo_path = next((p for p in [Path("logo.png"), Path("logo.jpg"), Path("logo.jpeg")] if p.exists()), None)
@@ -222,6 +264,11 @@ if logo_path is not None:
     logo_html = f'<img src="data:image/{ext};base64,{logo_b64}" style="height:70px;">'
 else:
     logo_html = '<span style="color:#E18426; font-size:2rem;">🏗️</span>'
+
+_subtitulo_obra = (
+    f'<div style="font-size: 2rem; font-weight: 800; color: {AZUL}; line-height: 1.1; margin-top: 6px;">'
+    f'{obras_sel[0].upper()}</div>'
+) if len(obras_sel) == 1 else ""
 
 st.markdown(f"""
 <div style="
@@ -240,6 +287,7 @@ st.markdown(f"""
     <div style="font-size: 2rem; font-weight: 800; color: {AZUL}; line-height: 1.1;">
       Evaluación de Subcontratos
     </div>
+    {_subtitulo_obra}
     <div style="font-size: 0.95rem; color: {NARANJO}; font-weight: 500; margin-top: 4px;">
       Sistema de Gestión de Proveedores
     </div>
@@ -255,20 +303,72 @@ if not excel_path.exists():
 
 df = cargar_datos(excel_path.read_bytes())
 
+# ── Fotos de obras ─────────────────────────────────────────────────────────────
+# Mapeo: nombre de obra (en Title Case, como llega del df) → archivo de imagen
+# Las imágenes deben estar en la misma carpeta que app.py con los nombres indicados.
+# Ejemplo: {"Conjunto Habitacional El Pino": "obra_pino.jpg"}
+FOTOS_OBRAS: dict = {
+    # Clave: nombre exacto de la obra tal como aparece en el Excel (Title Case)
+    # Valor: nombre del archivo de imagen en la misma carpeta que app.py
+    "Guillermo Feliu":  "foto_guillermo_feliu.jpeg",
+    "Jose Venturelli":  "foto_jose_venturelli.jpg",
+    "Pedro Luna Ii":    "foto_pedro_luna_ii.JPG",
+    "Alfredo Helsby":   "foto_alfredo_helsby.JPG",
+    "Armando Uribe":    "foto_armando_uribe.jpg",
+    "Enrique Maturana": "foto_enrique_maturana.JPG",
+    "Enriqueta Petit":  "foto_enriqueta_petit.JPG",
+    # Si el Excel usa prefijo distinto (ej. "Conjunto Guillermo Feliu"),
+    # ajusta la clave para que coincida exactamente con str.title()
+}
+
+def obra_foto_b64(nombre_obra: str) -> str | None:
+    """Devuelve la imagen de la obra en base64, o None si no existe."""
+    archivo = FOTOS_OBRAS.get(nombre_obra)
+    if archivo:
+        p = Path(archivo)
+        if p.exists():
+            ext = p.suffix.lower().lstrip(".")
+            if ext == "jpg":
+                ext = "jpeg"
+            with open(p, "rb") as f:
+                return f"data:image/{ext};base64,{base64.b64encode(f.read()).decode()}"
+    return None
+
 # ── Filtros sidebar ────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### Filtros")
     obras_disp = sorted(df["OBRA"].dropna().unique())
-    obras_sel  = st.multiselect("Obra", obras_disp, default=obras_disp)
-    evas_disp  = sorted(df["N_EVA"].dropna().unique())
-    eva_sel    = st.multiselect("N° Evaluación", evas_disp, default=evas_disp)
-    estados_sel = st.multiselect("Estado", ["APROBADO", "MEJORAR", "REPROBADO"],
-                                  default=["APROBADO", "MEJORAR", "REPROBADO"])
+
+    # Botón para seleccionar todas las obras
+    if st.button("📋 Todas las obras", use_container_width=True):
+        st.session_state["obras_sel"] = list(obras_disp)
+
+    if "obras_sel" not in st.session_state:
+        st.session_state["obras_sel"] = list(obras_disp)
+
+    # Mostrar cada obra con su foto (si existe) en el multiselect
+    obras_sel = st.multiselect(
+        "Seleccionar obras",
+        options=obras_disp,
+        default=st.session_state["obras_sel"],
+        key="obras_sel",
+    )
+
+    # Mostrar miniaturas de las obras seleccionadas en el sidebar
+    for obra in obras_sel:
+        foto_b64 = obra_foto_b64(obra)
+        if foto_b64:
+            st.markdown(
+                f'<img src="{foto_b64}" style="width:100%; border-radius:8px; margin-bottom:6px;" title="{obra}">',
+                unsafe_allow_html=True,
+            )
+
+# ── Filtro de datos (solo por obra; estado siempre incluye todos) ───────────────
+estados_todos = ["APROBADO", "MEJORAR", "REPROBADO"]
 
 df_f = df[
     df["OBRA"].isin(obras_sel) &
-    df["N_EVA"].isin(eva_sel)  &
-    df["ESTADO"].isin(estados_sel)
+    df["ESTADO"].isin(estados_todos)
 ]
 
 if df_f.empty:
